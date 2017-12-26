@@ -3,7 +3,7 @@ from quantopian.algorithm import attach_pipeline, pipeline_output
 from quantopian.pipeline import Pipeline
 from quantopian.pipeline.data.builtin import USEquityPricing
 from quantopian.pipeline.factors import Returns
-from quantopian.pipeline.filters import Q1500US
+from quantopian.pipeline.classifiers.fundamentals import Sector
 
 
 def initialize(context):
@@ -27,13 +27,16 @@ def make_pipeline(context):
     """
     A function to build out filtered stock list by sectors.
     """
-    # Filter for stocks in the Q1500US universe. For more detail, see this post:
-    # https://www.quantopian.com/posts/the-q500us-and-q1500us
-    universe = Q1500US()
-
+    # Hold sector object, which will be used as a column in the pipeline, identifying
+    # each stock's sector.
+    stocks_sector = Sector()
+    
     # Possible short version of a pipeline without filters
-    # return Pipeline(  
-    # screen = Tradeable500US)
+    return Pipeline(
+        columns={
+            'sector_code': stocks_sector
+        }
+    )
     
     
 def handle_data(context, data):
@@ -49,8 +52,47 @@ def open_positions(context, data):
     Called by the intitalize() function once per week.
     All calculations and research should be finished within this function
     """
-    order_target_percent(context.spy, 0.10)
-
+    # order_target_percent(context.spy, 0.10)
+    #------------------------------------------------------------------------------------------#
+    # ARCHITECTURE
+    #
+    # Loop through each stock:
+    #   Get Stock.earnings in past year
+    #   Get Stock.growth_rate_percentage in past year
+    #   Get Stock.ROE in past year (Net Income/ Shareholder's Equity)
+    #
+    #   Compare stock to next stock in same sector. If the previous stock is > than the current
+    #   stock, move on till another stock out performs.
+    #
+    #   Do this in each sector.
+    #
+    #------------------------------------------------------------------------------------------#
+    # Sector Code definitions
+    code = {'BASIC MATERIALS'       : 101,
+            'COMMUNICATION SERVICES': 308,
+            'CONSUMER CYCLICAL'     : 102,
+            'CONSUMER DEFENSIVE'    : 205,
+            'ENERGY'                : 309,
+            'FINANCIAL SERVICES'    : 103,
+            'HEALTHCARE'            : 206,
+            'INDUSTRIALS'           : 310,
+            'REAL ESTATE'           : 104}
+    # Sector list definitions
+    context.basic_matr = []
+    context.communication_ser = []
+    # Get the stock list
+    stock_list = pipeline_output('stock_list_filtered_by_sectors')
+    # Loop through specific 
+    for sector in stock_list[stock_list['sector_code']].index.tolist():
+        if data.can_trade(sector):
+            if sector is code['BASIC_MATERIALS']: 
+                context.basic_matr.append(sector)
+            else if sector is code['COMMUNICATION SERVICES']:
+                context.communication_ser.append(sector)
+            else:
+                continue
+    for stock in context.basic_matr:
+        print stock
 
 def close_positions(context, data):
     """
